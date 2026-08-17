@@ -1,0 +1,12 @@
+{
+    "validCustomer": {
+        "firstName": "John",
+        "lastName": "Doe",
+        "postalCode": "12345"
+    },
+    "anotherCustomer": {
+        "firstName": "Jane",
+        "lastName": "Smith",
+        "postalCode": "54321"
+    }
+}
