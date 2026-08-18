@@ -237,12 +237,10 @@ pipeline {
                     echo ''
 
                     withEnv([
-
                         "TEST_ENV=${params.TEST_ENV}",
                         "BROWSER=${params.BROWSER}",
                         "HEADLESS=${params.HEADLESS}",
                         "WORKERS=${workers}"
-
                     ]) {
 
                         bat """
@@ -412,6 +410,10 @@ pipeline {
                 echo "${env.BUILD_URL}artifact/reports/cucumber-report.html"
 
                 echo ''
+                echo 'Published HTML report URL:'
+                echo "${env.BUILD_URL}Cucumber_Report/"
+
+                echo ''
                 echo '============================================'
             }
         }
@@ -442,8 +444,41 @@ pipeline {
 
             echo ''
 
-            echo 'Jenkins Cucumber Report:'
+            // -----------------------------------------------------
+            // PUBLISH HTML REPORT
+            // -----------------------------------------------------
 
+            script {
+
+                if (fileExists('reports/cucumber-report.html')) {
+
+                    echo 'Cucumber HTML report found.'
+                    echo 'Publishing Cucumber HTML report...'
+
+                    publishHTML(target: [
+                        allowMissing: false,
+                        alwaysLinkToLastBuild: true,
+                        keepAll: true,
+                        reportDir: 'reports',
+                        reportFiles: 'cucumber-report.html',
+                        reportName: 'Cucumber Report',
+                        reportTitles: 'Playwright Cucumber Test Report'
+                    ])
+
+                    echo ''
+                    echo 'Cucumber Report:'
+                    echo "${env.BUILD_URL}Cucumber_Report/"
+
+                } else {
+
+                    echo 'Cucumber HTML report was not generated.'
+                    echo 'Skipping HTML Publisher.'
+                }
+            }
+
+            echo ''
+
+            echo 'Artifact URL:'
             echo "${env.BUILD_URL}artifact/reports/cucumber-report.html"
 
             echo ''
@@ -461,8 +496,8 @@ pipeline {
 
             echo ''
 
-            echo "Cucumber Report:"
-            echo "${env.BUILD_URL}artifact/reports/cucumber-report.html"
+            echo 'Cucumber Report:'
+            echo "${env.BUILD_URL}Cucumber_Report/"
 
             echo ''
 
@@ -482,8 +517,11 @@ pipeline {
             echo 'The test execution or report generation failed.'
 
             echo ''
-
             echo 'Check the Jenkins Console Output.'
+
+            echo ''
+            echo 'Cucumber Report, if generated:'
+            echo "${env.BUILD_URL}Cucumber_Report/"
 
             echo ''
 
