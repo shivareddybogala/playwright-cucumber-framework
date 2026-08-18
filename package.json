@@ -8,7 +8,7 @@
     "test:headed": "cross-env HEADLESS=false cucumber-js",
     "test:headless": "cross-env HEADLESS=true cucumber-js",
     "test:regression": "cucumber-js --tags @regression"
-},
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -16,5 +16,8 @@
   "devDependencies": {
     "@cucumber/cucumber": "^13.2.1",
     "@playwright/test": "^1.62.1"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2"
   }
 }
