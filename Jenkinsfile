@@ -2,6 +2,14 @@ pipeline {
 
     agent any
 
+    options {
+        skipDefaultCheckout(true)
+    }
+
+    // =============================================================
+    // PARAMETERS
+    // =============================================================
+
     parameters {
 
         choice(
@@ -41,18 +49,42 @@ pipeline {
         )
     }
 
-
-    environment {
-
-        PROJECT_DIR = 'S:\\Playwright\\newplaywright\\playwright-cucumber-framework'
-
-    }
-
+    // =============================================================
+    // STAGES
+    // =============================================================
 
     stages {
 
         // =========================================================
-        // 1. DISPLAY PARAMETERS
+        // 1. CHECKOUT FROM GITHUB
+        // =========================================================
+
+        stage('Checkout') {
+
+            steps {
+
+                checkout scm
+
+                echo '============================================'
+                echo '       GITHUB CHECKOUT COMPLETED'
+                echo '============================================'
+
+                bat '''
+                    echo Current Jenkins workspace:
+                    cd
+
+                    echo.
+                    echo Workspace contents:
+                    dir
+
+                    echo.
+                    echo ============================================
+                '''
+            }
+        }
+
+        // =========================================================
+        // 2. TEST CONFIGURATION
         // =========================================================
 
         stage('Test Configuration') {
@@ -74,309 +106,316 @@ pipeline {
             }
         }
 
-
         // =========================================================
-        // 2. CHECK NODE / NPM
+        // 3. ENVIRONMENT CHECK
         // =========================================================
 
         stage('Environment Check') {
 
             steps {
 
-                dir("${env.PROJECT_DIR}") {
+                bat '''
+                    echo ============================================
+                    echo ENVIRONMENT CHECK
+                    echo ============================================
 
-                    bat '''
-                        echo ============================================
-                        echo NODE VERSION
-                        echo ============================================
+                    echo.
+                    echo Current directory:
+                    cd
 
-                        node --version
-                        npm --version
+                    echo.
+                    echo Node version:
+                    node --version
 
-                        echo.
-                        echo CURRENT DIRECTORY
-                        cd
-                    '''
-                }
+                    echo.
+                    echo NPM version:
+                    npm --version
+
+                    echo.
+                    echo Cucumber version:
+                    call npx cucumber-js --version
+
+                    echo.
+                    echo ============================================
+                '''
             }
         }
 
-
         // =========================================================
-        // 3. INSTALL DEPENDENCIES
+        // 4. INSTALL DEPENDENCIES
         // =========================================================
 
         stage('Install Dependencies') {
 
             steps {
 
-                dir("${env.PROJECT_DIR}") {
+                bat '''
+                    echo ============================================
+                    echo INSTALLING DEPENDENCIES
+                    echo ============================================
 
-                    bat '''
-                        echo ============================================
-                        echo INSTALLING DEPENDENCIES
-                        echo ============================================
+                    call npm ci
 
-                        call npm install
+                    echo.
+                    echo Installing Playwright browsers...
 
-                        echo.
-                        echo Installing Playwright browsers...
+                    call npx playwright install
 
-                        call npx playwright install
-                    '''
-                }
+                    echo.
+                    echo Dependencies installation completed.
+
+                    echo.
+                    echo ============================================
+                '''
             }
         }
 
-
         // =========================================================
-        // 4. CLEAN OLD REPORT
+        // 5. CLEAN PREVIOUS REPORT
         // =========================================================
 
-        stage('Clean Previous Reports') {
+        stage('Clean Previous Report') {
 
             steps {
 
-                dir("${env.PROJECT_DIR}") {
+                bat '''
+                    echo ============================================
+                    echo CLEANING PREVIOUS REPORT
+                    echo ============================================
 
-                    bat '''
-                        echo ============================================
-                        echo CLEANING OLD CUCUMBER REPORT
-                        echo ============================================
+                    if exist "reports\\cucumber-report.html" (
+                        echo Previous cucumber report found.
+                        del /f /q "reports\\cucumber-report.html"
+                        echo Previous cucumber report deleted.
+                    ) else (
+                        echo No previous cucumber report found.
+                    )
 
-                        if exist reports\\cucumber-report.html (
-                            del /f /q reports\\cucumber-report.html
-                        )
+                    if not exist "reports" (
+                        echo Reports directory does not exist.
+                        mkdir "reports"
+                        echo Reports directory created.
+                    )
 
-                        echo Old cucumber-report.html removed.
+                    echo.
+                    echo Reports directory after cleanup:
 
-                        echo.
-                        echo Reports directory:
+                    dir "reports"
 
-                        if exist reports (
-                            dir reports
-                        ) else (
-                            echo Reports directory does not exist.
-                            mkdir reports
-                        )
-                    '''
-                }
+                    echo.
+                    echo ============================================
+                '''
             }
         }
 
-
         // =========================================================
-        // 5. RUN CUCUMBER TESTS
+        // 6. RUN CUCUMBER TESTS
         // =========================================================
 
         stage('Run Cucumber Tests') {
 
             steps {
 
-                dir("${env.PROJECT_DIR}") {
+                script {
 
-                    script {
+                    def workers = params.PARALLEL
+                        ? params.WORKERS
+                        : '1'
 
-                        def workers = params.PARALLEL
-                            ? params.WORKERS
-                            : '1'
+                    echo ''
+                    echo '============================================'
+                    echo 'STARTING CUCUMBER TEST EXECUTION'
+                    echo '============================================'
 
+                    echo "Environment : ${params.TEST_ENV}"
+                    echo "Browser     : ${params.BROWSER}"
+                    echo "Tags        : ${params.TAGS}"
+                    echo "Headless    : ${params.HEADLESS}"
+                    echo "Parallel    : ${params.PARALLEL}"
+                    echo "Workers     : ${workers}"
 
-                        echo '============================================'
-                        echo 'STARTING TEST EXECUTION'
-                        echo '============================================'
+                    echo ''
 
-                        echo "Environment : ${params.TEST_ENV}"
-                        echo "Browser     : ${params.BROWSER}"
-                        echo "Tags        : ${params.TAGS}"
-                        echo "Headless    : ${params.HEADLESS}"
-                        echo "Parallel    : ${params.PARALLEL}"
-                        echo "Workers     : ${workers}"
+                    withEnv([
 
+                        "TEST_ENV=${params.TEST_ENV}",
+                        "BROWSER=${params.BROWSER}",
+                        "HEADLESS=${params.HEADLESS}",
+                        "WORKERS=${workers}"
 
-                        withEnv([
-                            "TEST_ENV=${params.TEST_ENV}",
-                            "BROWSER=${params.BROWSER}",
-                            "HEADLESS=${params.HEADLESS}",
-                            "WORKERS=${workers}"
-                        ]) {
+                    ]) {
 
-                            bat """
-                                echo ============================================
-                                echo TEST ENVIRONMENT
-                                echo ============================================
+                        bat """
+                            echo ============================================
+                            echo TEST CONFIGURATION
+                            echo ============================================
 
-                                echo TEST_ENV=%TEST_ENV%
-                                echo BROWSER=%BROWSER%
-                                echo HEADLESS=%HEADLESS%
-                                echo WORKERS=%WORKERS%
+                            echo TEST_ENV=%TEST_ENV%
+                            echo BROWSER=%BROWSER%
+                            echo HEADLESS=%HEADLESS%
+                            echo WORKERS=%WORKERS%
 
-                                echo.
-                                echo ============================================
-                                echo RUNNING CUCUMBER
-                                echo ============================================
+                            echo.
 
-                                call npx cucumber-js --tags "${params.TAGS}" --parallel ${workers}
+                            echo ============================================
+                            echo RUNNING CUCUMBER TESTS
+                            echo ============================================
 
-                                exit /b %ERRORLEVEL%
-                            """
-                        }
+                            call npx cucumber-js ^
+                                --tags "${params.TAGS}" ^
+                                --parallel ${workers} ^
+                                --format progress ^
+                                --format html:reports/cucumber-report.html
+
+                            set TEST_EXIT_CODE=%ERRORLEVEL%
+
+                            echo.
+
+                            echo ============================================
+                            echo CUCUMBER EXECUTION COMPLETED
+                            echo ============================================
+
+                            echo.
+                            echo Cucumber report:
+
+                            echo %CD%\\reports\\cucumber-report.html
+
+                            echo.
+
+                            if exist "reports\\cucumber-report.html" (
+                                echo Cucumber HTML report generated successfully.
+                            ) else (
+                                echo ERROR: Cucumber HTML report was NOT generated.
+                            )
+
+                            echo.
+                            echo ============================================
+
+                            exit /b %TEST_EXIT_CODE%
+                        """
                     }
                 }
             }
         }
 
-
         // =========================================================
-        // 6. VERIFY CUCUMBER HTML REPORT
+        // 7. VERIFY CUCUMBER REPORT
         // =========================================================
 
         stage('Verify Cucumber Report') {
 
             steps {
 
-                dir("${env.PROJECT_DIR}") {
+                bat '''
+                    echo ============================================
+                    echo VERIFYING CUCUMBER HTML REPORT
+                    echo ============================================
 
-                    bat '''
+                    echo.
+                    echo Current directory:
+                    cd
+
+                    echo.
+                    echo Reports directory contents:
+                    dir "reports"
+
+                    echo.
+                    echo Expected report:
+                    echo %CD%\\reports\\cucumber-report.html
+
+                    echo.
+                    echo Checking report...
+
+                    if exist "reports\\cucumber-report.html" (
+
+                        echo.
                         echo ============================================
-                        echo VERIFYING CUCUMBER HTML REPORT
+                        echo CUCUMBER HTML REPORT FOUND
                         echo ============================================
 
                         echo.
-                        echo Workspace:
-                        cd
+                        echo Report details:
+
+                        dir "reports\\cucumber-report.html"
 
                         echo.
-                        echo Expected report:
+                        echo Report verification successful.
 
-                        echo S:\\Playwright\\newplaywright\\playwright-cucumber-framework\\reports\\cucumber-report.html
+                    ) else (
 
                         echo.
-                        echo Checking report...
+                        echo ============================================
+                        echo ERROR: REPORT NOT FOUND
+                        echo ============================================
 
-                        if exist reports\\cucumber-report.html (
+                        echo.
+                        echo Expected:
 
-                            echo.
-                            echo ============================================
-                            echo CUCUMBER HTML REPORT FOUND
-                            echo ============================================
+                        echo %CD%\\reports\\cucumber-report.html
 
-                            echo.
-                            dir reports\\cucumber-report.html
+                        echo.
+                        echo Available files:
 
-                        ) else (
+                        dir "reports"
 
-                            echo.
-                            echo ============================================
-                            echo ERROR: CUCUMBER HTML REPORT NOT FOUND
-                            echo ============================================
+                        echo.
+                        echo ============================================
 
-                            echo.
-                            echo Expected:
-                            echo reports\\cucumber-report.html
+                        exit /b 1
+                    )
 
-                            exit /b 1
-                        )
-                    '''
-                }
+                    echo.
+                    echo ============================================
+                    echo REPORT VERIFICATION COMPLETED
+                    echo ============================================
+                '''
             }
         }
 
-
         // =========================================================
-        // 7. PUBLISH CUCUMBER HTML REPORT
+        // 8. ARCHIVE REPORT
         // =========================================================
 
-        stage('Publish Cucumber HTML Report') {
+        stage('Archive Cucumber Report') {
 
             steps {
 
-                dir("${env.PROJECT_DIR}") {
+                archiveArtifacts(
+                    artifacts: 'reports/cucumber-report.html',
+                    allowEmptyArchive: false,
+                    fingerprint: true
+                )
 
-                    echo '============================================'
-                    echo 'PUBLISHING CUCUMBER HTML REPORT'
-                    echo '============================================'
-
-                    echo "Report directory: ${env.PROJECT_DIR}\\reports"
-                    echo "Report file     : ${env.PROJECT_DIR}\\reports\\cucumber-report.html"
-
-
-                    publishHTML(target: [
-
-                        // Report must exist
-                        allowMissing: false,
-
-                        // Show report on latest build
-                        alwaysLinkToLastBuild: true,
-
-                        // Keep report for every build
-                        keepAll: true,
-
-                        // IMPORTANT:
-                        // Relative to PROJECT_DIR/workspace
-                        reportDir: 'reports',
-
-                        // The actual HTML file generated by Cucumber
-                        reportFiles: 'cucumber-report.html',
-
-                        // Name shown in Jenkins
-                        reportName: 'Cucumber HTML Report',
-
-                        // Supporting files used by the report
-                        includes: '''
-                            cucumber-report.html,
-                            **/*.css,
-                            **/*.js,
-                            **/*.png,
-                            **/*.jpg,
-                            **/*.jpeg,
-                            **/*.gif,
-                            **/*.svg
-                        ''',
-
-                        // Keep underscores as-is
-                        escapeUnderscores: false,
-
-                        // Use the report wrapper directly
-                        useWrapperFileDirectly: true
-                    ])
-                }
+                echo 'Cucumber HTML report archived successfully.'
             }
         }
 
-
         // =========================================================
-        // 8. ARCHIVE SCREENSHOTS ONLY
+        // 9. REPORT INFORMATION
         // =========================================================
 
-        stage('Archive Screenshots') {
+        stage('Report Information') {
 
             steps {
 
-                dir("${env.PROJECT_DIR}") {
+                echo ''
+                echo '============================================'
+                echo '       CUCUMBER HTML REPORT'
+                echo '============================================'
 
-                    script {
+                echo ''
+                echo 'Jenkins workspace report:'
+                echo "${env.WORKSPACE}\\reports\\cucumber-report.html"
 
-                        if (fileExists('reports')) {
+                echo ''
+                echo 'Jenkins artifact URL:'
+                echo "${env.BUILD_URL}artifact/reports/cucumber-report.html"
 
-                            echo 'Archiving screenshots only...'
-
-                            archiveArtifacts(
-                                artifacts: 'reports/**/*.png',
-                                allowEmptyArchive: true,
-                                fingerprint: true
-                            )
-
-                        } else {
-
-                            echo 'No reports directory found.'
-                        }
-                    }
-                }
+                echo ''
+                echo '============================================'
             }
         }
     }
-
 
     // =============================================================
     // POST ACTIONS
@@ -392,6 +431,8 @@ pipeline {
             echo '           BUILD SUMMARY'
             echo '============================================'
 
+            echo ''
+
             echo "Environment : ${params.TEST_ENV}"
             echo "Browser     : ${params.BROWSER}"
             echo "Tags        : ${params.TAGS}"
@@ -401,18 +442,14 @@ pipeline {
 
             echo ''
 
-            echo '============================================'
-            echo 'Cucumber HTML Report'
-            echo '============================================'
+            echo 'Jenkins Cucumber Report:'
 
-            echo 'Report generated at:'
-            echo "${env.PROJECT_DIR}\\reports\\cucumber-report.html"
+            echo "${env.BUILD_URL}artifact/reports/cucumber-report.html"
 
             echo ''
 
-            echo 'The report is published on the Jenkins build page.'
+            echo '============================================'
         }
-
 
         success {
 
@@ -423,8 +460,14 @@ pipeline {
             echo '============================================'
 
             echo ''
-        }
 
+            echo "Cucumber Report:"
+            echo "${env.BUILD_URL}artifact/reports/cucumber-report.html"
+
+            echo ''
+
+            echo '============================================'
+        }
 
         failure {
 
@@ -436,10 +479,15 @@ pipeline {
 
             echo ''
 
-            echo 'Open the Jenkins console and Cucumber report'
-            echo 'to investigate the failure.'
+            echo 'The test execution or report generation failed.'
 
             echo ''
+
+            echo 'Check the Jenkins Console Output.'
+
+            echo ''
+
+            echo '============================================'
         }
     }
 }
